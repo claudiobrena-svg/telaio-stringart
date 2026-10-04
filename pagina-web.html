@@ -1,5 +1,5 @@
 <title>Telaio String Art</title>
-<meta name="telaio-version" content="1.5.1">
+<meta name="telaio-version" content="1.6.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -118,8 +118,10 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
         </div>
         <button type="button" class="primary" id="optAll">Ottimizza foto e impostazioni</button>
         <div class="row"><button type="button" id="autoOpt">Ottimizza solo la foto</button><button type="button" id="optStop" hidden>Interrompi</button></div>
+        <label class="check"><input type="checkbox" id="optDiam" checked> Scegli anche il diametro del telaio</label>
+        <div class="row" id="diamRangeRow"><label for="diamMin">tra</label><input type="number" id="diamMin" min="20" max="200" step="5" value="30" style="width:5em"><label for="diamMax">e</label><input type="number" id="diamMax" min="20" max="200" step="5" value="100" style="width:5em"><span>cm</span></div>
         <div class="progress" id="optBarBox" hidden aria-hidden="true"><i id="optBar"></i></div>
-        <p class="note" id="optInfo">Prova diverse combinazioni di chiodi, intensità, protezione delle zone chiare e salto minimo, e tiene quella più somigliante alla foto. Misura e spessore del filo restano quelli che hai scelto.</p>
+        <p class="note" id="optInfo">Sceglie diametro del telaio (nei limiti che indichi), chiodi e salto minimo confrontando il risultato con la foto come lo vedresti appeso alla parete. Lo spessore del filo resta quello che hai scelto.</p>
         <p class="note" id="quality"></p>
         <div class="ctl"><label for="clahe">Contrasto locale</label><output id="claheO"></output><input type="range" id="clahe" min="0" max="1" step="0.05" value="0"><small>Fa emergere i lineamenti anche in foto con luce non uniforme.</small></div>
         <div class="ctl"><label for="sharp">Nitidezza dettagli</label><output id="sharpO"></output><input type="range" id="sharp" min="0" max="3" step="0.1" value="0"><small>Rinforza occhi, bocca e contorni.</small></div>
@@ -678,6 +680,53 @@ function similarityError(resid0, residF, scale){
   }
   return (out[0]+out[1])/2;
 }
+// scelta del diametro: per ogni misura si simula il quadro con un chiodo ogni 6 mm circa e si confronta
+// con la foto vista da una distanza proporzionale alla misura (un quadro grande si guarda da più lontano).
+// A parità di filo, un telaio più grande permette più passaggi e toni più fini, ma oltre una certa misura
+// il miglioramento diventa invisibile: si sceglie la misura più piccola che arriva quasi al meglio.
+async function chooseDiameter(){
+  let lo = Math.round(+$('diamMin').value||30), hi = Math.round(+$('diamMax').value||100);
+  lo = Math.max(20, Math.min(200, lo)); hi = Math.max(lo, Math.min(200, hi));
+  const steps = Math.min(8, Math.max(1, Math.round((hi-lo)/10)));
+  const cands = [...new Set(Array.from({length:steps+1}, (_,i) => Math.round((lo + (hi-lo)*i/steps)/5)*5))];
+  const N0 = N; N = 800;                                      // risoluzione alta: servono i dettagli fini
+  const p0 = P(); const resid0 = prepare(p0); IMP = faceImportance(p0);
+  const per1 = S.shape==='circle' ? Math.PI*10 : 40;          // mm di perimetro per cm di diametro/lato
+  const res = [];
+  for(let k=0;k<cands.length;k++){
+    if(optCancel) throw new Error('stop');
+    const D = cands[k], scale = D*10/(N-2), per = per1*D;
+    $('optInfo').textContent = `Provo il telaio da ${D} cm… (${k+1} di ${cands.length})`;
+    $('optBar').style.width = (100*k/cands.length).toFixed(0)+'%';
+    await new Promise(r => setTimeout(r, 0));
+    const nails = Math.max(60, Math.min(400, 2*Math.round(per/6/2)));
+    const cov = Math.min(0.95, p0.thread/scale*p0.weight), wEff = -100*Math.log(1-cov);
+    const r = Float32Array.from(resid0); PEN = p0.pen;
+    const lines = greedyRun(r, makeNails(nails), Math.max(1, Math.round(nails*0.08)), wEff, 15000);
+    res.push({D, nails, lines, err: viewError(resid0, r)});
+  }
+  const eMin = Math.min(...res.map(r => r.err)), eMax = Math.max(...res.map(r => r.err));
+  const pick = res.find(r => r.err <= eMin + 0.1*(eMax-eMin)) || res[res.length-1];
+  console.log('diam', JSON.stringify(res.map(r => [r.D, r.lines, +r.err.toFixed(4)])), 'pick', pick.D);
+  $('diam').value = pick.D;
+  N = N0;
+  S.diamTable = res; S.diamPick = pick.D;
+}
+// errore "da lontano": sfocatura fissa in proporzione al quadro, uguale per tutte le misure
+function viewError(resid0, residF){
+  const T = new Float32Array(N*N), R = new Float32Array(N*N), r2 = (N/2-1)*(N/2-1);
+  for(let i=0;i<N*N;i++){ T[i] = Math.exp(-resid0[i]/100); R[i] = Math.exp(-(resid0[i]-residF[i])/100); }
+  let tot = 0;
+  for(const rad of [1, 3]){
+    const bt = blur(T, rad), br = blur(R, rad); let se = 0, c = 0;
+    for(let i=0;i<N*N;i++){
+      if(S.shape==='circle'){ const x=i%N-N/2+.5, y=(i/N|0)-N/2+.5; if(x*x+y*y>r2) continue; }
+      const d = bt[i]-br[i], wi = IMP ? IMP[i] : 1; se += d*d*wi; c += wi;
+    }
+    tot += Math.sqrt(se/c)/2;
+  }
+  return tot;
+}
 const simPct = e => Math.max(0, Math.min(100, Math.round(100*(1 - e*2.2))));
 let optCancel = false;
 async function optimizeAll(){
@@ -685,7 +734,9 @@ async function optimizeAll(){
   $('optAll').disabled = $('autoOpt').disabled = true; $('optStop').hidden = false; $('optBarBox').hidden = false;
   try{
     optimizePhoto(false);
-    const p = P(); N = 400;
+    N = 400;
+    if($('optDiam').checked) await chooseDiameter();
+    const p = P();
     const resid0 = prepare(p), scale = p.diam*10/(N-2);
     IMP = faceImportance(p);
     const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10;
@@ -733,9 +784,9 @@ async function optimizeAll(){
     const best = evalCfg({...cfg});
     $('nails').value = cfg.nails; $('weight').value = Math.max(0.3, Math.min(3, cfg.weight)); $('pen').value = cfg.pen;
     $('skip').value = Math.max(1, Math.min(60, Math.round(cfg.nails*cfg.skipF)));
-    $('lines').value = Math.min(15000, Math.max(300, Math.ceil(best.lines*1.02/100)*100));
+    $('lines').value = Math.min(15000, Math.max(300, Math.ceil(best.lines*1.15/100)*100));
     $('optBar').style.width = '100%';
-    $('optInfo').textContent = `Impostazioni ottimizzate: ${cfg.nails} chiodi, intensità ${(+$('weight').value).toFixed(2)}×, protezione zone chiare ${cfg.pen.toFixed(2)}, salto ${$('skip').value}, circa ${best.lines} passaggi. Somiglianza ${simPct(best.err)}% (con le impostazioni di partenza ${simPct(startErr)}%).`;
+    $('optInfo').textContent = `Impostazioni ottimizzate: ${$('optDiam').checked ? 'telaio da '+p.diam+' cm, ' : ''}${cfg.nails} chiodi, intensità ${(+$('weight').value).toFixed(2)}×, protezione zone chiare ${cfg.pen.toFixed(2)}, salto ${$('skip').value}, circa ${best.lines} passaggi. Somiglianza ${simPct(best.err)}% (con le impostazioni di partenza ${simPct(startErr)}%).`;
     toast('Ottimizzazione completata');
   }catch(e){
     if(e.message === 'stop') $('optInfo').textContent = 'Ottimizzazione interrotta: restano le impostazioni precedenti.';
