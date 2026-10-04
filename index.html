@@ -1,7 +1,7 @@
 <!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head><body>
 <title>Telaio String Art</title>
-<meta name="telaio-version" content="1.4.2">
+<meta name="telaio-version" content="1.4.3">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -894,7 +894,7 @@ function optimizePhoto(regen = true){
   // "denso": tutto il cerchio riempito di filo, sfondo scuro e volto chiaro ma tramato, come i quadri finiti
   // "leggero": immagine più chiara, bordi schiariti, fili solo dove servono
   const dense = $('style').value === 'dense';
-  $('autoLevels').checked = true; $('clahe').value = 0.6; $('sharp').value = dense ? 0.6 : 0.8; $('fade').value = dense ? 0 : 0.35;
+  $('autoLevels').checked = true; $('clahe').value = dense ? 0.3 : 0.6; $('sharp').value = dense ? 0.3 : 0.8; $('fade').value = dense ? 0 : 0.35;
   if(dense){ $('weight').value = 0.7; $('lines').value = Math.max(+$('lines').value, 10000); $('res').value = 800; }
   $('contrast').value = 0; $('bright').value = 0; $('gamma').value = 1;
   const p = P(); p.gamma = 1; p.fade = 0; p.sharp = 0;
@@ -904,12 +904,12 @@ function optimizePhoto(regen = true){
   let darkN = 0, tot = 0; for(let i=0;i<r0.length;i++){ if(r0[i] > 0){ tot++; if(r0[i] > 150) darkN++; } }
   const darkFrac = tot ? darkN/tot : 0;
   if(dense){
-    if(darkFrac > 0.25){ $('contrast').value = -25; $('bright').value = 10; $('pen').value = 0.35; }
+    if(darkFrac > 0.15){ $('contrast').value = -25; $('bright').value = 10; $('pen').value = 0.35; }
     else $('pen').value = 0.1;
     p.contrast = +$('contrast').value; p.bright = +$('bright').value; prepare(p);
   }
   const m = Math.min(0.95, Math.max(0.05, 1 - S.meanDark));        // luminosità media 0..1
-  const target = dense ? (p.invert ? 0.55 : (darkFrac > 0.25 ? 0.45 : 0.4)) : (p.invert ? 0.45 : 0.5);   // luminosità media desiderata
+  const target = dense ? (p.invert ? 0.55 : (darkFrac > 0.15 ? 0.45 : 0.4)) : (p.invert ? 0.45 : 0.5);   // luminosità media desiderata
   const gm = Math.min(2.5, Math.max(0.4, Math.log(m)/Math.log(target)));
   $('gamma').value = gm.toFixed(2);
   syncOutputs();
