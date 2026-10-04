@@ -1,5 +1,5 @@
 <title>Telaio String Art</title>
-<meta name="telaio-version" content="1.5.0">
+<meta name="telaio-version" content="1.5.1">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -691,6 +691,7 @@ async function optimizeAll(){
     const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10;
     const even = v => Math.max(60, Math.min(400, 2*Math.round(v/2)));
     const nMax = even(Math.min(400, per/4.5));            // chiodi non più vicini di 4,5 mm
+    const dense = $('style').value === 'dense';
     const cfg = {nails: even(Math.min(nMax, Math.max(160, per/6))), weight:+$('weight').value, pen:+$('pen').value, skipF:0.08};
     const cache = new Map();
     const evalCfg = c => {
@@ -702,8 +703,14 @@ async function optimizeAll(){
       const res = {err: similarityError(resid0, r, scale), lines};
       cache.set(key, res); return res;
     };
-    const stages = [
-      ['pen',    $('style').value === 'dense' ? [0.1, 0.2, 0.35, 0.5] : [0.2, 0.35, 0.5, 0.7]],
+    // nello stile denso la misura di somiglianza premia risultati slavati e radi (protezione e intensità alte),
+    // e le sue scelte cambiano molto con il diametro: lì intensità e protezione restano quelle tarate
+    // dall'ottimizzazione foto, e si cercano solo numero di chiodi e salto
+    const stages = dense ? [
+      ['nails',  [...new Set([0.85, 1, 1.2].map(f => even(Math.min(nMax, cfg.nails*f))))]],
+      ['skipF',  [0.06, 0.08, 0.11]]
+    ] : [
+      ['pen',    [0.2, 0.35, 0.5, 0.7]],
       ['weight', [0.5, 0.7, 0.85, 1, 1.25]],
       ['nails',  [...new Set([0.7, 0.85, 1, 1.2].map(f => even(Math.min(nMax, cfg.nails*f))))]],
       ['skipF',  [0.03, 0.06, 0.1, 0.15]],
@@ -712,7 +719,7 @@ async function optimizeAll(){
     const total = stages.reduce((a,[,v]) => a + (v ? v.length : 3), 0); let done = 0;
     const startErr = evalCfg({...cfg}).err; let bestErr = startErr;
     for(const [key, vals] of stages){
-      const cand = vals || (key==='pen' ? [cfg.pen-0.05, cfg.pen, cfg.pen+0.05].map(v=>Math.max(0,Math.min($('style').value === 'dense' ? 0.6 : 1,+v.toFixed(2))))
+      const cand = vals || (key==='pen' ? [cfg.pen-0.05, cfg.pen, cfg.pen+0.05].map(v=>Math.max(0,Math.min(dense ? 0.35 : 1,+v.toFixed(2))))
                                          : [cfg.weight*0.9, cfg.weight, cfg.weight*1.1].map(v=>+v.toFixed(2)));
       for(const v of cand){
         if(optCancel) throw new Error('stop');
