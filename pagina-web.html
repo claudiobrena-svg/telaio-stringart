@@ -1,5 +1,5 @@
 <title>Telaio String Art</title>
-<meta name="telaio-version" content="1.3.0">
+<meta name="telaio-version" content="1.4.0">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -111,6 +111,9 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
 
       <div class="group">
         <h2>Ottimizzazione foto</h2>
+        <div class="row"><label for="style">Stile</label>
+          <select id="style"><option value="dense" selected>Fotografico denso (come i quadri finiti)</option><option value="light">Tratto leggero</option></select>
+        </div>
         <button type="button" class="primary" id="optAll">Ottimizza foto e impostazioni</button>
         <div class="row"><button type="button" id="autoOpt">Ottimizza solo la foto</button><button type="button" id="optStop" hidden>Interrompi</button></div>
         <div class="progress" id="optBarBox" hidden aria-hidden="true"><i id="optBar"></i></div>
@@ -137,9 +140,9 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
 
       <div class="group">
         <h2>Filo</h2>
-        <div class="ctl"><label for="lines">Numero di passaggi</label><output id="linesO"></output><input type="range" id="lines" min="300" max="15000" step="100" value="4000"><small>Massimo di passaggi: il calcolo si ferma prima se l'immagine è già completa.</small></div>
+        <div class="ctl"><label for="lines">Numero di passaggi</label><output id="linesO"></output><input type="range" id="lines" min="300" max="15000" step="100" value="8000"><small>Massimo di passaggi: il calcolo si ferma prima se l'immagine è già completa.</small></div>
         <div class="ctl"><label for="weight">Intensità</label><output id="weightO"></output><input type="range" id="weight" min="0.3" max="3" step="0.05" value="1"><small id="weightInfo">Correzione su quanto scurisce ogni passaggio, calcolato da spessore del filo e dimensione del telaio.</small></div>
-        <div class="ctl"><label for="pen">Protezione zone chiare</label><output id="penO"></output><input type="range" id="pen" min="0" max="1" step="0.05" value="0.35"><small>Più alto = volti e luci restano puliti; più basso = più fili e più dettaglio nelle ombre.</small></div>
+        <div class="ctl"><label for="pen">Protezione zone chiare</label><output id="penO"></output><input type="range" id="pen" min="0" max="1" step="0.05" value="0.15"><small>Più alto = volti e luci restano puliti; più basso = più fili e più dettaglio nelle ombre.</small></div>
         <div class="ctl"><label for="skip">Salto minimo tra chiodi</label><output id="skipO"></output><input type="range" id="skip" min="1" max="60" step="1" value="20"><small>Evita fili troppo corti vicino al bordo.</small></div>
         <div class="row"><label for="start">Chiodo di partenza</label><input type="number" id="start" min="1" max="400" step="1" value="1"></div>
       </div>
@@ -151,7 +154,7 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
         </div>
         <p class="note" id="methodInfo">Il metodo globale considera tutti i fili insieme, come nel video "The Mathematics of String Art": risolve un sistema di minimi quadrati, sceglie l'insieme di fili migliore e poi lo ordina in un unico percorso continuo. È più lento ma più fedele.</p>
         <div class="row"><label for="res">Risoluzione</label>
-          <select id="res"><option value="400" selected>Normale (veloce)</option><option value="600">Alta</option><option value="800">Massima (lenta)</option></select>
+          <select id="res"><option value="400">Normale (veloce)</option><option value="600" selected>Alta</option><option value="800">Massima (lenta)</option></select>
         </div>
         <p class="note">Una risoluzione più alta rende meglio occhi e piccoli dettagli, ma il calcolo richiede più tempo.</p>
       </div>
@@ -161,6 +164,7 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
         <div class="ctl"><label for="alpha">Copertura del filo</label><output id="alphaO"></output><input type="range" id="alpha" min="0.2" max="1" step="0.05" value="0.85"></div>
         <div class="row"><label for="threadCol">Filo</label><input type="color" id="threadCol" value="#141414"><label for="bgCol">Fondo</label><input type="color" id="bgCol" value="#ffffff"></div>
         <label class="check"><input type="checkbox" id="showNums" checked> Mostra numeri dei chiodi</label>
+        <label class="check"><input type="checkbox" id="farView"> Simula la vista da qualche metro</label>
       </div>
     </aside>
 
@@ -651,7 +655,7 @@ async function optimizeAll(){
     const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10;
     const even = v => Math.max(60, Math.min(400, 2*Math.round(v/2)));
     const nMax = even(Math.min(400, per/4.5));            // chiodi non più vicini di 4,5 mm
-    const cfg = {nails: even(Math.min(nMax, Math.max(160, per/6))), weight:1, pen:0.35, skipF:0.08};
+    const cfg = {nails: even(Math.min(nMax, Math.max(160, per/6))), weight:1, pen: $('style').value === 'dense' ? 0.1 : 0.35, skipF:0.08};
     const cache = new Map();
     const evalCfg = c => {
       const key = JSON.stringify(c); if(cache.has(key)) return cache.get(key);
@@ -663,7 +667,7 @@ async function optimizeAll(){
       cache.set(key, res); return res;
     };
     const stages = [
-      ['pen',    [0.1, 0.2, 0.35, 0.5, 0.7]],
+      ['pen',    $('style').value === 'dense' ? [0.05, 0.1, 0.15, 0.25] : [0.2, 0.35, 0.5, 0.7]],
       ['weight', [0.6, 0.8, 1, 1.25, 1.6]],
       ['nails',  [...new Set([0.7, 0.85, 1, 1.2].map(f => even(Math.min(nMax, cfg.nails*f))))]],
       ['skipF',  [0.03, 0.06, 0.1, 0.15]],
@@ -672,7 +676,7 @@ async function optimizeAll(){
     const total = stages.reduce((a,[,v]) => a + (v ? v.length : 3), 0); let done = 0;
     const startErr = evalCfg({...cfg}).err; let bestErr = startErr;
     for(const [key, vals] of stages){
-      const cand = vals || (key==='pen' ? [cfg.pen-0.07, cfg.pen, cfg.pen+0.07].map(v=>Math.max(0,Math.min(1,+v.toFixed(2))))
+      const cand = vals || (key==='pen' ? [cfg.pen-0.05, cfg.pen, cfg.pen+0.05].map(v=>Math.max(0,Math.min($('style').value === 'dense' ? 0.25 : 1,+v.toFixed(2))))
                                          : [cfg.weight*0.9, cfg.weight, cfg.weight*1.1].map(v=>+v.toFixed(2)));
       for(const v of cand){
         if(optCancel) throw new Error('stop');
@@ -853,6 +857,7 @@ function schedule(){ syncOutputs(); clearTimeout(deb); deb = setTimeout(generate
 ['invert','autoLevels','start','diam','thread','res','method'].forEach(id => $(id).addEventListener('change', schedule));
 ['alpha','threadCol','bgCol'].forEach(id => $(id).addEventListener('input', ()=>{ syncOutputs(); redrawAll(); }));
 $('showNums').addEventListener('change', drawOverlay);
+$('farView').addEventListener('change', () => { art.style.filter = $('farView').checked ? 'blur(0.9px)' : ''; });
 $('invert').addEventListener('change', () => {
   const inv = $('invert').checked;
   $('threadCol').value = inv ? '#f2f2f2' : '#141414'; $('bgCol').value = inv ? '#141414' : '#ffffff';
@@ -868,13 +873,17 @@ $('shapeSquare').onclick = () => setShape('square');
 $('regen').onclick = generate;
 function optimizePhoto(regen = true){
   // misura la luminosità media dopo livelli e contrasto locale, poi sceglie i toni medi
-  $('autoLevels').checked = true; $('clahe').value = 0.6; $('sharp').value = 0.8; $('fade').value = 0.35;
+  // "denso": tutto il cerchio riempito di filo, sfondo scuro e volto chiaro ma tramato, come i quadri finiti
+  // "leggero": immagine più chiara, bordi schiariti, fili solo dove servono
+  const dense = $('style').value === 'dense';
+  $('autoLevels').checked = true; $('clahe').value = 0.6; $('sharp').value = dense ? 0.6 : 0.8; $('fade').value = dense ? 0 : 0.35;
+  if(dense){ $('pen').value = 0.1; $('lines').value = Math.max(+$('lines').value, 8000); if(+$('res').value < 600) $('res').value = 600; }
   $('contrast').value = 0; $('bright').value = 0; $('gamma').value = 1;
   const p = P(); p.gamma = 1; p.fade = 0; p.sharp = 0;
   prepare(p);
   const m = Math.min(0.95, Math.max(0.05, 1 - S.meanDark));        // luminosità media 0..1
-  const target = p.invert ? 0.45 : 0.5;                              // la string art rende meglio su immagini chiare
-  const gm = Math.min(2.5, Math.max(0.6, Math.log(m)/Math.log(target)));
+  const target = dense ? (p.invert ? 0.55 : 0.4) : (p.invert ? 0.45 : 0.5);   // luminosità media desiderata
+  const gm = Math.min(2.5, Math.max(0.4, Math.log(m)/Math.log(target)));
   $('gamma').value = gm.toFixed(2);
   syncOutputs();
   if(regen){ toast('Foto ottimizzata: puoi ritoccare i cursori a mano'); schedule(); }
