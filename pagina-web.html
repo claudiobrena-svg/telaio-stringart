@@ -1,0 +1,934 @@
+<title>Telaio String Art</title>
+<meta name="telaio-version" content="1.3.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: banco di lavoro a due colonne, pannello comandi a sinistra, tela e lista lavoro a destra; una colonna su telefono */
+:root{
+  --bg:#f6f5f2; --panel:#ffffff; --fg:#1d1c1a; --muted:#6c6862; --line:#e2dfd8;
+  --accent:#a8761c; --accent-soft:#f3e7cf; --canvas-bg:#ffffff; --ok:#2f7a4a;
+  --f-display:"Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --f-body:"Instrument Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono:"IBM Plex Mono", ui-monospace, Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#17171a; --panel:#212126; --fg:#ecebe8; --muted:#a29e97; --line:#34343a;
+  --accent:#d6a24a; --accent-soft:#3a2f1c; --canvas-bg:#ffffff; --ok:#6cc08b; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#17171a; --panel:#212126; --fg:#ecebe8; --muted:#a29e97; --line:#34343a;
+  --accent:#d6a24a; --accent-soft:#3a2f1c; --canvas-bg:#ffffff; --ok:#6cc08b; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.45;padding:0 16px;padding-block:20px 40px}
+.wrap{max-width:1280px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px}
+h1{font-family:var(--f-display);font-weight:700;font-size:28px;margin:0;letter-spacing:-.01em}
+header p{margin:0;color:var(--muted);max-width:70ch}
+.grid{display:grid;grid-template-columns:330px minmax(0,1fr);gap:18px;align-items:start}
+@media (max-width:900px){.grid{grid-template-columns:minmax(0,1fr)}}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;display:flex;flex-direction:column;gap:14px;min-width:0}
+.panel h2{font-family:var(--f-display);font-weight:500;font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+.group{display:flex;flex-direction:column;gap:10px;padding-top:14px;border-top:1px solid var(--line)}
+.group:first-of-type{border-top:0;padding-top:0}
+.ctl{display:grid;grid-template-columns:1fr auto;gap:2px 10px;align-items:center}
+.ctl label{font-weight:500}
+.ctl output{font-family:var(--f-mono);font-size:12.5px;color:var(--accent);font-variant-numeric:tabular-nums}
+.ctl input[type=range]{grid-column:1/-1;width:100%;accent-color:var(--accent)}
+.ctl small{grid-column:1/-1;color:var(--muted);font-size:12px}
+.row{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{border:0;border-radius:0;background:transparent}
+.seg button[aria-pressed=true]{background:var(--accent-soft);color:var(--fg);font-weight:600}
+button,.filebtn{font:inherit;font-weight:500;color:var(--fg);background:var(--panel);border:1px solid var(--line);border-radius:8px;padding:7px 12px;cursor:pointer}
+button:hover,.filebtn:hover{border-color:var(--accent)}
+button:focus-visible,input:focus-visible,.filebtn:focus-within{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+button:disabled{opacity:.5;cursor:default}
+.filebtn input{position:absolute;opacity:0;width:1px;height:1px}
+input[type=number]{font:inherit;font-family:var(--f-mono);width:90px;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+input[type=color]{width:38px;height:30px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--panel)}
+.check{display:flex;gap:8px;align-items:center}
+.src{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center}
+.src canvas{width:110px;height:110px;border-radius:6px;border:1px solid var(--line);background:#fff}
+.src p{margin:0;color:var(--muted);font-size:12.5px}
+.stage{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
+@media (max-width:1150px){.stage{grid-template-columns:minmax(0,1fr)}}
+.canvasbox{position:relative;width:100%;max-width:760px;aspect-ratio:1;margin:0 auto}
+.canvasbox canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:8px}
+#art{background:var(--canvas-bg);box-shadow:0 1px 0 var(--line),0 8px 30px rgba(0,0,0,.08)}
+.stats{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+@media (max-width:560px){.stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.stat{display:flex;flex-direction:column;gap:2px}
+.stat b{font-family:var(--f-mono);font-weight:500;font-size:18px;font-variant-numeric:tabular-nums}
+.stat span{color:var(--muted);font-size:12px}
+.progress{height:4px;background:var(--line);border-radius:4px;overflow:hidden}
+.progress i{display:block;height:100%;width:0;background:var(--accent);transition:width .1s}
+.player{display:flex;flex-direction:column;gap:12px}
+.now{display:flex;align-items:center;justify-content:center;gap:14px;font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.now .n{font-size:44px;font-weight:500;min-width:2.6ch;text-align:center}
+.now .n.to{color:var(--accent)}
+.now .arr{font-size:26px;color:var(--muted)}
+.stepline{text-align:center;color:var(--muted);font-family:var(--f-mono);font-size:12.5px}
+.player .row{justify-content:center}
+.list{font-family:var(--f-mono);font-size:12.5px;font-variant-numeric:tabular-nums;height:340px;overflow:auto;border:1px solid var(--line);border-radius:8px;background:var(--bg);padding:6px 0;margin:0}
+.list div{display:grid;grid-template-columns:4.5ch 1fr;gap:10px;padding:1px 12px;cursor:pointer}
+.list div:hover{background:var(--accent-soft)}
+.list div.cur{background:var(--accent);color:#fff}
+.list span{color:var(--muted);text-align:right}
+.list div.cur span{color:#fff}
+.note{color:var(--muted);font-size:12px;margin:0}
+.toast{min-height:1.2em;color:var(--ok);font-size:12.5px}
+textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
+@media (prefers-reduced-motion:reduce){.progress i{transition:none}}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Telaio String Art</h1>
+    <p>Carica un'immagine: il programma calcola il percorso del filo sui chiodi numerati e produce la lista di lavoro passo per passo. Ogni modifica ai parametri ricalcola il risultato. <span id="appVersion"></span></p>
+  </header>
+
+  <div class="grid">
+    <aside class="panel" aria-label="Parametri">
+      <div class="group">
+        <h2>Immagine</h2>
+        <div class="src">
+          <canvas id="srcPrev" width="220" height="220" aria-label="Immagine elaborata"></canvas>
+          <div class="row" style="flex-direction:column;align-items:flex-start;gap:6px">
+            <label class="filebtn">Scegli immagine…<input type="file" id="file" accept="image/*"></label>
+            <p id="srcName">Esempio incluso: ritratto stilizzato. Puoi anche trascinare o incollare un'immagine.</p>
+          </div>
+        </div>
+        <div class="ctl"><label for="zoom">Zoom</label><output id="zoomO"></output><input type="range" id="zoom" min="1" max="3" step="0.05" value="1"></div>
+        <div class="ctl"><label for="offX">Sposta orizzontale</label><output id="offXO"></output><input type="range" id="offX" min="-1" max="1" step="0.02" value="0"></div>
+        <div class="ctl"><label for="offY">Sposta verticale</label><output id="offYO"></output><input type="range" id="offY" min="-1" max="1" step="0.02" value="0"></div>
+        <div class="ctl"><label for="contrast">Contrasto</label><output id="contrastO"></output><input type="range" id="contrast" min="-50" max="100" step="1" value="0"></div>
+        <div class="ctl"><label for="bright">Luminosità</label><output id="brightO"></output><input type="range" id="bright" min="-80" max="80" step="1" value="0"></div>
+        <div class="ctl"><label for="gamma">Toni medi</label><output id="gammaO"></output><input type="range" id="gamma" min="0.4" max="2.5" step="0.05" value="1"><small>Sopra 1 schiarisce le ombre e fa emergere i dettagli nelle zone scure.</small></div>
+        <label class="check"><input type="checkbox" id="autoLevels" checked> Livelli automatici (consigliato per foto scure o sbiadite)</label>
+        <label class="check"><input type="checkbox" id="invert"> Filo chiaro su fondo scuro</label>
+      </div>
+
+      <div class="group">
+        <h2>Ottimizzazione foto</h2>
+        <button type="button" class="primary" id="optAll">Ottimizza foto e impostazioni</button>
+        <div class="row"><button type="button" id="autoOpt">Ottimizza solo la foto</button><button type="button" id="optStop" hidden>Interrompi</button></div>
+        <div class="progress" id="optBarBox" hidden aria-hidden="true"><i id="optBar"></i></div>
+        <p class="note" id="optInfo">Prova diverse combinazioni di chiodi, intensità, protezione delle zone chiare e salto minimo, e tiene quella più somigliante alla foto. Misura e spessore del filo restano quelli che hai scelto.</p>
+        <p class="note" id="quality"></p>
+        <div class="ctl"><label for="clahe">Contrasto locale</label><output id="claheO"></output><input type="range" id="clahe" min="0" max="1" step="0.05" value="0"><small>Fa emergere i lineamenti anche in foto con luce non uniforme.</small></div>
+        <div class="ctl"><label for="sharp">Nitidezza dettagli</label><output id="sharpO"></output><input type="range" id="sharp" min="0" max="3" step="0.1" value="0"><small>Rinforza occhi, bocca e contorni.</small></div>
+        <div class="ctl"><label for="fade">Schiarisci i bordi</label><output id="fadeO"></output><input type="range" id="fade" min="0" max="1" step="0.05" value="0"><small>Alleggerisce lo sfondo verso il bordo: meno filo sprecato, più contrasto al centro.</small></div>
+      </div>
+
+      <div class="group">
+        <h2>Telaio</h2>
+        <div class="row"><span>Forma</span>
+          <div class="seg" role="group" aria-label="Forma del telaio">
+            <button type="button" id="shapeCircle" aria-pressed="true">Cerchio</button>
+            <button type="button" id="shapeSquare" aria-pressed="false">Quadrato</button>
+          </div>
+        </div>
+        <div class="ctl"><label for="nails">Numero di chiodi</label><output id="nailsO"></output><input type="range" id="nails" min="60" max="400" step="2" value="240"></div>
+        <div class="row"><label for="diam" id="diamLabel">Diametro (cm)</label><input type="number" id="diam" min="10" max="300" step="1" value="50"></div>
+        <div class="row"><label for="thread">Spessore del filo (mm)</label><input type="number" id="thread" min="0.05" max="3" step="0.05" value="0.3"></div>
+        <p class="note" id="nailInfo"></p>
+      </div>
+
+      <div class="group">
+        <h2>Filo</h2>
+        <div class="ctl"><label for="lines">Numero di passaggi</label><output id="linesO"></output><input type="range" id="lines" min="300" max="15000" step="100" value="4000"><small>Massimo di passaggi: il calcolo si ferma prima se l'immagine è già completa.</small></div>
+        <div class="ctl"><label for="weight">Intensità</label><output id="weightO"></output><input type="range" id="weight" min="0.3" max="3" step="0.05" value="1"><small id="weightInfo">Correzione su quanto scurisce ogni passaggio, calcolato da spessore del filo e dimensione del telaio.</small></div>
+        <div class="ctl"><label for="pen">Protezione zone chiare</label><output id="penO"></output><input type="range" id="pen" min="0" max="1" step="0.05" value="0.35"><small>Più alto = volti e luci restano puliti; più basso = più fili e più dettaglio nelle ombre.</small></div>
+        <div class="ctl"><label for="skip">Salto minimo tra chiodi</label><output id="skipO"></output><input type="range" id="skip" min="1" max="60" step="1" value="20"><small>Evita fili troppo corti vicino al bordo.</small></div>
+        <div class="row"><label for="start">Chiodo di partenza</label><input type="number" id="start" min="1" max="400" step="1" value="1"></div>
+      </div>
+
+      <div class="group">
+        <h2>Calcolo</h2>
+        <div class="row"><label for="method">Metodo</label>
+          <select id="method"><option value="greedy" selected>Rapido (un filo alla volta)</option><option value="global">Globale (minimi quadrati)</option></select>
+        </div>
+        <p class="note" id="methodInfo">Il metodo globale considera tutti i fili insieme, come nel video "The Mathematics of String Art": risolve un sistema di minimi quadrati, sceglie l'insieme di fili migliore e poi lo ordina in un unico percorso continuo. È più lento ma più fedele.</p>
+        <div class="row"><label for="res">Risoluzione</label>
+          <select id="res"><option value="400" selected>Normale (veloce)</option><option value="600">Alta</option><option value="800">Massima (lenta)</option></select>
+        </div>
+        <p class="note">Una risoluzione più alta rende meglio occhi e piccoli dettagli, ma il calcolo richiede più tempo.</p>
+      </div>
+
+      <div class="group">
+        <h2>Anteprima</h2>
+        <div class="ctl"><label for="alpha">Copertura del filo</label><output id="alphaO"></output><input type="range" id="alpha" min="0.2" max="1" step="0.05" value="0.85"></div>
+        <div class="row"><label for="threadCol">Filo</label><input type="color" id="threadCol" value="#141414"><label for="bgCol">Fondo</label><input type="color" id="bgCol" value="#ffffff"></div>
+        <label class="check"><input type="checkbox" id="showNums" checked> Mostra numeri dei chiodi</label>
+      </div>
+    </aside>
+
+    <main class="stage">
+      <section class="panel">
+        <div class="stats">
+          <div class="stat"><b id="sSteps">0</b><span>passaggi calcolati</span></div>
+          <div class="stat"><b id="sLen">0 m</b><span>filo stimato</span></div>
+          <div class="stat"><b id="sNails">–</b><span>tra un chiodo e l'altro</span></div>
+          <div class="stat"><b id="sTime">–</b><span>tempo di calcolo</span></div>
+        </div>
+        <div class="progress" aria-hidden="true"><i id="bar"></i></div>
+        <div class="canvasbox">
+          <canvas id="art" width="1200" height="1200" aria-label="Anteprima string art"></canvas>
+          <canvas id="overlay" width="1200" height="1200" aria-hidden="true"></canvas>
+        </div>
+        <div class="row" style="justify-content:center">
+          <button type="button" class="primary" id="regen">Ricalcola</button>
+          <button type="button" id="stop">Ferma</button>
+        </div>
+      </section>
+
+      <section class="panel" aria-label="Lista di lavoro">
+        <h2>Lista di lavoro</h2>
+        <div class="player">
+          <div class="now" aria-live="polite"><span class="n" id="pFrom">1</span><span class="arr">→</span><span class="n to" id="pTo">–</span></div>
+          <div class="stepline" id="pStep">passo 0 di 0</div>
+          <div class="row">
+            <button type="button" id="pPrev" aria-label="Passo precedente">◀ Indietro</button>
+            <button type="button" class="primary" id="pNext" aria-label="Passo successivo">Avanti ▶</button>
+          </div>
+          <div class="row"><label for="pJump">Vai al passo</label><input type="number" id="pJump" min="1" value="1"></div>
+          <p class="note">Usa le frecce ← → o la barra spaziatrice. Il passo attuale è evidenziato in oro sulla tela e viene ricordato in questo browser.</p>
+        </div>
+        <div class="list" id="list" role="list"></div>
+        <div class="row">
+          <button type="button" id="copyList">Copia lista</button>
+          <button type="button" id="dlTxt">Scarica TXT</button>
+          <button type="button" id="dlCsv">Scarica CSV</button>
+        </div>
+        <div class="row">
+          <button type="button" id="dlSvg">Scarica dima chiodi (SVG)</button>
+          <button type="button" id="dlPng">Scarica anteprima (PNG)</button>
+        </div>
+        <div class="row">
+          <button type="button" id="saveProj">Salva progetto</button>
+          <label class="filebtn">Apri progetto…<input type="file" id="openProj" accept=".json,application/json"></label>
+        </div>
+        <div class="toast" id="toast" role="status"></div>
+        <textarea id="fallback" hidden readonly aria-label="Testo da copiare"></textarea>
+        <p class="note">La dima SVG è in scala reale: stampala al 100% per segnare la posizione dei chiodi.</p>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+(() => {
+let N = 400;                   // risoluzione interna di calcolo (400, 600 o 800)
+let PEN = 0.5;                 // quanto pesa scurire zone già abbastanza scure (0 = mai, 1 = pieno)
+const $ = id => document.getElementById(id);
+const art = $('art'), actx = art.getContext('2d');
+const ov = $('overlay'), octx = ov.getContext('2d');
+const W = art.width;
+
+const S = {
+  shape:'circle', img:null, nails:[], resid:null, steps:[], job:0, running:false,
+  cur:0, lenMM:0
+};
+
+/* ---------- immagine di esempio (ritratto stilizzato, generato) ---------- */
+function sampleImage(){
+  const c = document.createElement('canvas'); c.width = c.height = 600;
+  const g = c.getContext('2d');
+  g.fillStyle = '#e9e9e9'; g.fillRect(0,0,600,600);
+  let gr = g.createRadialGradient(300,560,40,300,600,330); gr.addColorStop(0,'#555'); gr.addColorStop(1,'#222');
+  g.fillStyle = gr; g.beginPath(); g.ellipse(300,640,260,190,0,0,Math.PI*2); g.fill();          // spalle
+  g.fillStyle = '#9a9a9a'; g.fillRect(255,360,90,110);                                           // collo
+  gr = g.createRadialGradient(270,250,30,300,280,190); gr.addColorStop(0,'#d8d8d8'); gr.addColorStop(1,'#7a7a7a');
+  g.fillStyle = gr; g.beginPath(); g.ellipse(300,270,128,165,0,0,Math.PI*2); g.fill();          // viso
+  g.fillStyle = '#1e1e1e'; g.beginPath(); g.ellipse(300,165,150,95,0,Math.PI,0); g.fill();       // capelli
+  g.beginPath(); g.ellipse(178,250,28,110,0.1,0,Math.PI*2); g.fill();
+  g.beginPath(); g.ellipse(422,250,28,110,-0.1,0,Math.PI*2); g.fill();
+  g.fillStyle = '#2a2a2a';
+  [[250,255],[350,255]].forEach(([x,y])=>{ g.beginPath(); g.ellipse(x,y,22,11,0,0,Math.PI*2); g.fill(); });
+  g.strokeStyle='#333'; g.lineWidth=7; g.lineCap='round';
+  g.beginPath(); g.moveTo(222,222); g.quadraticCurveTo(250,208,278,220); g.stroke();
+  g.beginPath(); g.moveTo(322,220); g.quadraticCurveTo(350,208,378,222); g.stroke();
+  g.lineWidth=5; g.strokeStyle='#555';
+  g.beginPath(); g.moveTo(300,270); g.lineTo(290,320); g.lineTo(306,325); g.stroke();
+  g.strokeStyle='#3a3a3a'; g.lineWidth=7;
+  g.beginPath(); g.moveTo(262,365); g.quadraticCurveTo(300,385,338,365); g.stroke();
+  return c;
+}
+
+/* ---------- parametri ---------- */
+const P = () => ({
+  zoom:+$('zoom').value, offX:+$('offX').value, offY:+$('offY').value,
+  contrast:+$('contrast').value, bright:+$('bright').value, gamma:+$('gamma').value, clahe:+$('clahe').value, sharp:+$('sharp').value, fade:+$('fade').value, invert:$('invert').checked, autoLevels:$('autoLevels').checked,
+  nails:+$('nails').value, lines:+$('lines').value, weight:+$('weight').value,
+  skip:+$('skip').value, res:+$('res').value, method:$('method').value, pen:+$('pen').value, start:Math.max(1, Math.min(+$('start').value||1, +$('nails').value)),
+  diam:Math.max(1, +$('diam').value||50), thread:Math.min(3, Math.max(0.02, +$('thread').value||0.3)), alpha:+$('alpha').value,
+  threadCol:$('threadCol').value, bgCol:$('bgCol').value, showNums:$('showNums').checked
+});
+const outputs = {zoom:v=>v.toFixed(2)+'×', offX:v=>v.toFixed(2), offY:v=>v.toFixed(2),
+  contrast:v=>v, bright:v=>v, gamma:v=>v.toFixed(2), clahe:v=>v.toFixed(2), sharp:v=>v.toFixed(1), fade:v=>v.toFixed(2), nails:v=>v, lines:v=>v, weight:v=>v.toFixed(2)+'×', skip:v=>v, pen:v=>v.toFixed(2), alpha:v=>v.toFixed(2)};
+function syncOutputs(){ for(const k in outputs) $(k+'O').textContent = outputs[k](+$(k).value); }
+
+/* ---------- elaborazione immagine ---------- */
+function prepare(p){
+  const c = document.createElement('canvas'); c.width = c.height = N;
+  const g = c.getContext('2d', {willReadFrequently:true});
+  g.fillStyle = '#fff'; g.fillRect(0,0,N,N);
+  const im = S.img, w = im.naturalWidth||im.width, h = im.naturalHeight||im.height;
+  const sc = Math.max(N/w, N/h) * p.zoom, dw = w*sc, dh = h*sc;
+  const dx = (N-dw)/2 - p.offX*(dw-N)/2, dy = (N-dh)/2 - p.offY*(dh-N)/2;
+  g.drawImage(im, dx, dy, dw, dh);
+  const d = g.getImageData(0,0,N,N).data;
+  const cf = (100 + p.contrast) / 100, cf2 = cf*cf;
+  const resid = new Float32Array(N*N);
+  const prev = g.createImageData(N,N), pd = prev.data;
+  const r = N/2 - 1, r2 = r*r;
+  const lum = new Float32Array(N*N), rc = N/2 - 1;
+  for(let i=0;i<N*N;i++) lum[i] = 0.299*d[i*4] + 0.587*d[i*4+1] + 0.114*d[i*4+2];
+  let lo = 0, hi = 255;
+  if(p.autoLevels){                       // stira l'istogramma tra il 2° e il 98° percentile
+    const hist = new Uint32Array(256); let tot = 0;
+    for(let i=0;i<N*N;i++){
+      if(S.shape==='circle'){ const x=i%N-N/2+.5, y=(i/N|0)-N/2+.5; if(x*x+y*y>rc*rc) continue; }
+      hist[lum[i]|0]++; tot++;
+    }
+    let acc = 0; lo = -1;
+    for(let k=0;k<256;k++){ acc += hist[k]; if(lo<0 && acc >= tot*0.02) lo = k; if(acc >= tot*0.98){ hi = k; break; } }
+    if(hi - lo < 10){ lo = 0; hi = 255; }
+  }
+  const inMask = i => { if(S.shape!=='circle') return true; const x=i%N-N/2+.5, y=(i/N|0)-N/2+.5; return x*x+y*y <= r2; };
+  // 1. livelli
+  let L = new Float32Array(N*N);
+  for(let i=0;i<N*N;i++){ const v = (lum[i]-lo)*255/(hi-lo); L[i] = v<0?0:v>255?255:v; }
+  // 2. contrasto locale (CLAHE)
+  if(p.clahe > 0){ const bl = blur(L, 1); for(let i=0;i<N*N;i++) L[i] = 0.5*L[i] + 0.5*bl[i];   // riduce la grana prima di aumentare il contrasto
+    const e = clahe(L, 8, 2.5); for(let i=0;i<N*N;i++) L[i] += (e[i]-L[i])*p.clahe; }
+  // 3. toni medi, contrasto, luminosità
+  for(let i=0;i<N*N;i++){
+    let v = 255*Math.pow(L[i]/255, 1/p.gamma);
+    v = (v-128)*cf2 + 128 + p.bright;
+    L[i] = v<0?0:v>255?255:v;
+  }
+  // 4. nitidezza (maschera di contrasto)
+  if(p.sharp > 0){ const b = blur(L, 2); for(let i=0;i<N*N;i++){ const v = L[i] + p.sharp*(L[i]-b[i]); L[i] = v<0?0:v>255?255:v; } }
+  // 5. schiarisci i bordi
+  if(p.fade > 0){
+    for(let i=0;i<N*N;i++){
+      const x=(i%N-N/2+.5)/(N/2), y=((i/N|0)-N/2+.5)/(N/2);
+      const d = S.shape==='circle' ? Math.hypot(x,y) : Math.max(Math.abs(x),Math.abs(y));
+      const t = Math.min(1, Math.max(0, (d-0.55)/0.45)); const k = p.fade*t*t;
+      const target = p.invert ? 0 : 255;
+      L[i] += (target - L[i])*k;
+    }
+  }
+  let sumDark = 0, cnt = 0;
+  for(let i=0;i<N*N;i++){
+    const v = L[i];
+    let dark = p.invert ? v : 255 - v;
+    if(!inMask(i)) dark = 0; else { sumDark += dark; cnt++; }
+    resid[i] = -100*Math.log(1 - Math.min(dark/255, 0.93));   // densità ottica da raggiungere
+    const shown = 255 - dark;
+    pd[i*4]=pd[i*4+1]=pd[i*4+2]=shown; pd[i*4+3]=255;
+  }
+  S.meanDark = cnt ? sumDark/cnt/255 : 0;
+  qualityNote();
+  g.putImageData(prev,0,0);
+  const sp = $('srcPrev').getContext('2d');
+  sp.clearRect(0,0,220,220); sp.drawImage(c,0,0,220,220);
+  return resid;
+}
+
+function blur(src, rad){             // sfocatura box separabile, 2 passate
+  let a = src, tmp = new Float32Array(N*N), out = new Float32Array(N*N);
+  for(let pass=0; pass<2; pass++){
+    for(let y=0;y<N;y++){ let acc=0; for(let x=-rad;x<=rad;x++) acc += a[y*N+Math.min(N-1,Math.max(0,x))];
+      for(let x=0;x<N;x++){ tmp[y*N+x] = acc/(2*rad+1); acc += a[y*N+Math.min(N-1,x+rad+1)] - a[y*N+Math.max(0,x-rad)]; } }
+    for(let x=0;x<N;x++){ let acc=0; for(let y=-rad;y<=rad;y++) acc += tmp[Math.min(N-1,Math.max(0,y))*N+x];
+      for(let y=0;y<N;y++){ out[y*N+x] = acc/(2*rad+1); acc += tmp[Math.min(N-1,y+rad+1)*N+x] - tmp[Math.max(0,y-rad)*N+x]; } }
+    a = out; out = new Float32Array(N*N);
+  }
+  return a;
+}
+function clahe(src, tiles, clip){     // equalizzazione adattiva a contrasto limitato
+  const ts = N/tiles, maps = [];
+  for(let ty=0;ty<tiles;ty++) for(let tx=0;tx<tiles;tx++){
+    const h = new Float32Array(256); let n = 0;
+    for(let y=Math.floor(ty*ts); y<Math.floor((ty+1)*ts); y++) for(let x=Math.floor(tx*ts); x<Math.floor((tx+1)*ts); x++){ h[src[y*N+x]|0]++; n++; }
+    const lim = clip*n/256; let ex = 0;
+    for(let k=0;k<256;k++) if(h[k]>lim){ ex += h[k]-lim; h[k] = lim; }
+    const add = ex/256, m = new Float32Array(256); let acc = 0;
+    for(let k=0;k<256;k++){ acc += h[k]+add; m[k] = 255*acc/n; }
+    maps.push(m);
+  }
+  const out = new Float32Array(N*N);
+  for(let y=0;y<N;y++){
+    let fy = (y+.5)/ts - .5, y0 = Math.floor(fy), wy = fy - y0; const y1 = Math.min(tiles-1, y0+1); y0 = Math.max(0, y0); if(fy<0) wy = 0;
+    for(let x=0;x<N;x++){
+      let fx = (x+.5)/ts - .5, x0 = Math.floor(fx), wx = fx - x0; const x1 = Math.min(tiles-1, x0+1); x0 = Math.max(0, x0); if(fx<0) wx = 0;
+      const v = src[y*N+x]|0;
+      const a = maps[y0*tiles+x0][v], b = maps[y0*tiles+x1][v], c = maps[y1*tiles+x0][v], d = maps[y1*tiles+x1][v];
+      out[y*N+x] = (a*(1-wx)+b*wx)*(1-wy) + (c*(1-wx)+d*wx)*wy;
+    }
+  }
+  return out;
+}
+function qualityNote(){
+  const im = S.img, w = im.naturalWidth||im.width, h = im.naturalHeight||im.height;
+  const px = Math.min(w,h)/$('zoom').value, notes = [];
+  if(px < 400) notes.push(`foto piccola (${Math.round(px)} px utili nel cerchio): meglio almeno 800 px`);
+  if(S.meanDark > 0.6) notes.push(`immagine molto scura (${Math.round(S.meanDark*100)}% da coprire): prova "Schiarisci i bordi" o "Toni medi"`);
+  else if(S.meanDark < 0.2) notes.push('immagine molto chiara: il risultato avrà pochi fili');
+  $('quality').textContent = notes.length ? 'Da migliorare: ' + notes.join('; ') + '.' : `Foto adatta: ${Math.round(S.meanDark*100)}% della superficie da coprire con il filo.`;
+}
+
+/* ---------- chiodi ---------- */
+function makeNails(n){
+  const out = [];
+  if(S.shape==='circle'){
+    const r = N/2 - 1;
+    for(let k=0;k<n;k++){ const a = -Math.PI/2 + k/n*Math.PI*2; out.push({x:N/2 + r*Math.cos(a), y:N/2 + r*Math.sin(a), side:0}); }
+  } else {
+    const m = 1, L = N - 2*m;
+    for(let k=0;k<n;k++){
+      const q = k/n*4, s = Math.floor(q), f = q - s;
+      let x,y;
+      if(s===0){x=m+f*L;y=m} else if(s===1){x=m+L;y=m+f*L} else if(s===2){x=m+L-f*L;y=m+L} else {x=m;y=m+L-f*L}
+      let mask = 1<<s; if(f < 1e-9) mask |= 1<<((s+3)%4);
+      out.push({x,y,side:mask});
+    }
+  }
+  return out;
+}
+
+/* ---------- algoritmo greedy ---------- */
+function lineScore(resid, a, b){
+  const dx = b.x-a.x, dy = b.y-a.y, n = Math.max(Math.abs(dx), Math.abs(dy))|0;
+  if(n<1) return 0;
+  const sx = dx/n, sy = dy/n; let x = a.x, y = a.y, sum = 0;
+  for(let i=0;i<=n;i++){ const r = resid[(y|0)*N + (x|0)]; sum += r>0 ? r : r*PEN; x+=sx; y+=sy; }
+  return sum/(n+1);
+}
+function lineSubtract(resid, a, b, w){
+  const dx = b.x-a.x, dy = b.y-a.y, n = Math.max(Math.abs(dx), Math.abs(dy))|0;
+  const sx = dx/n, sy = dy/n; let x = a.x, y = a.y;
+  for(let i=0;i<=n;i++){ const k=(y|0)*N + (x|0); resid[k] -= w; x+=sx; y+=sy; }
+}
+
+function generate(){
+  const p = P(); syncOutputs();
+  const job = ++S.job;
+  S.rim = null;
+  if(p.method === 'global'){ generateGlobal(p, job); return; }
+  N = p.res;
+  S.nails = makeNails(p.nails);
+  S.resid = prepare(p); PEN = p.pen;
+  const n = p.nails, nails = S.nails, resid = S.resid;
+  S.steps = [p.start-1]; S.lenMM = 0;
+  const used = new Uint8Array(n*n);
+  const scale = p.diam*10/(N-2);            // mm per pixel di calcolo
+  const cov = Math.min(0.95, p.thread/scale * p.weight);       // copertura di un passaggio su un punto immagine
+  const wEff = -100*Math.log(1 - cov);                          // densità aggiunta da un passaggio
+  $('weightInfo').textContent = `Ogni passaggio copre ${(100*p.thread/scale).toFixed(0)}% di un punto immagine (${scale.toFixed(2)} mm). Correzione applicata ×${p.weight.toFixed(2)}.`;
+  let cur = p.start-1;
+  S.running = true;
+  const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10, gap = per/n;
+  $('sNails').textContent = gap.toFixed(1)+' mm';
+  $('nailInfo').textContent = gap < 3 ? `Attenzione: chiodi distanti solo ${gap.toFixed(1)} mm, difficili da piantare. Riduci i chiodi o aumenta le dimensioni.` : `Perimetro ${(per/10).toFixed(0)} cm, un chiodo ogni ${gap.toFixed(1)} mm.`;
+  drawBase(p); drawOverlay();
+  const t0 = performance.now();
+  let drawnUpTo = 0;
+  function chunk(){
+    if(job !== S.job) return;
+    const tEnd = performance.now() + 14; let exhausted = false;
+    while(S.steps.length-1 < p.lines && performance.now() < tEnd){
+      let best = -1, bestS = -Infinity;
+      const a = nails[cur];
+      for(let j=0;j<n;j++){
+        let dist = Math.abs(j-cur); dist = Math.min(dist, n-dist);
+        if(dist < p.skip || used[cur*n+j]) continue;
+        if(a.side & nails[j].side) continue;
+        const s = lineScore(resid, a, nails[j]);
+        if(s > bestS){ bestS = s; best = j; }
+      }
+      if(best < 0 || bestS <= wEff*0.15){ exhausted = true; break; }
+      lineSubtract(resid, a, nails[best], wEff);
+      used[cur*n+best] = used[best*n+cur] = 1;
+      S.lenMM += Math.hypot(nails[best].x-a.x, nails[best].y-a.y) * scale;
+      cur = best; S.steps.push(cur);
+    }
+    drawnUpTo = drawLines(p, drawnUpTo);
+    const done = S.steps.length - 1;
+    $('sSteps').textContent = done;
+    $('sLen').textContent = Math.round(S.lenMM/1000) + ' m';
+    $('bar').style.width = (100*done/p.lines).toFixed(1)+'%';
+    $('sTime').textContent = ((performance.now()-t0)/1000).toFixed(1)+' s';
+    const finished = done >= p.lines || exhausted;
+    if(!finished){ requestAnimationFrame(chunk); }
+    else { S.running = false; $('bar').style.width='100%'; finishList(); }
+  }
+  requestAnimationFrame(chunk);
+}
+
+/* ---------- metodo globale: modello lineare + minimi quadrati ---------- */
+// Ogni corda possibile è una colonna di una matrice sparsa A (copertura anti-alias dei pixel attraversati).
+// Si cerca x in [0,1] che minimizza ||A·x − b||² (b = densità della foto), poi si arrotonda a 0/1,
+// si rifinisce aggiungendo e togliendo fili, e infine si ordina tutto in un unico filo continuo.
+const tick = () => new Promise(r => setTimeout(r, 0));
+async function generateGlobal(p, job){
+  const t0 = performance.now(), alive = () => job === S.job;
+  S.running = true;
+  const status = (t, f) => { $('methodInfo').textContent = t; if(f!=null) $('bar').style.width = (100*f).toFixed(1)+'%'; $('sTime').textContent = ((performance.now()-t0)/1000).toFixed(1)+' s'; };
+  const n = p.nails;
+  // risoluzione: abbastanza fine, ma con la matrice entro ~14 milioni di valori
+  const chordsEst = n*(n-2*p.skip)/2;
+  N = Math.max(160, Math.min(p.res, 400, Math.floor(16e6/(Math.max(1,chordsEst)*1.5))));
+  S.nails = makeNails(n);
+  const nails = S.nails, b = prepare(p), scale = p.diam*10/(N-2);
+  const cov = Math.min(0.95, p.thread/scale*p.weight), w = -100*Math.log(1-cov);
+  drawBase(p); drawOverlay();
+  S.steps = []; $('list').replaceChildren(); $('sSteps').textContent = '0';
+  // 1. colonne della matrice
+  const pairs = [];
+  for(let i=0;i<n;i++) for(let j=i+1;j<n;j++){
+    let d = j-i; d = Math.min(d, n-d);
+    if(d < p.skip || (nails[i].side & nails[j].side)) continue;
+    pairs.push(i, j);
+  }
+  const m = pairs.length/2, colStart = new Int32Array(m+1);
+  let cap = 0;
+  for(let c=0;c<m;c++){ const a=nails[pairs[2*c]], q=nails[pairs[2*c+1]]; cap += 2*(Math.max(Math.abs(q.x-a.x), Math.abs(q.y-a.y))|0) + 4; }
+  const idx = new Int32Array(cap), val = new Float32Array(cap);
+  let nz = 0;
+  for(let c=0;c<m;c++){
+    colStart[c] = nz;
+    const a = nails[pairs[2*c]], q = nails[pairs[2*c+1]];
+    const dx = q.x-a.x, dy = q.y-a.y, steep = Math.abs(dy) > Math.abs(dx);
+    const len = Math.max(Math.abs(dx), Math.abs(dy))|0, k = Math.hypot(dx,dy)/Math.max(1,len); // lunghezza percorsa per passo
+    for(let t=0;t<=len;t++){
+      const u = t/Math.max(1,len), x = a.x + dx*u, y = a.y + dy*u;
+      if(steep){ const yi = Math.min(N-1, y|0), xf = x-0.5, x0 = Math.floor(xf), fr = xf-x0;
+        if(x0>=0){ idx[nz]=yi*N+x0; val[nz++]=w*k*(1-fr); } if(x0+1<N){ idx[nz]=yi*N+x0+1; val[nz++]=w*k*fr; } }
+      else { const xi = Math.min(N-1, x|0), yf = y-0.5, y0 = Math.floor(yf), fr = yf-y0;
+        if(y0>=0){ idx[nz]=y0*N+xi; val[nz++]=w*k*(1-fr); } if(y0+1<N){ idx[nz]=(y0+1)*N+xi; val[nz++]=w*k*fr; } }
+    }
+    if(c % 3000 === 0){ status(`Costruisco il modello: ${c} di ${m} fili possibili…`, 0.1*c/m); await tick(); if(!alive()) return; }
+  }
+  colStart[m] = nz;
+  const Ax = (x, out) => { out.fill(0); for(let c=0;c<m;c++){ const xc = x[c]; if(!xc) continue; for(let e=colStart[c]; e<colStart[c+1]; e++) out[idx[e]] += val[e]*xc; } return out; };
+  const ATy = (y, out) => { for(let c=0;c<m;c++){ let s=0; for(let e=colStart[c]; e<colStart[c+1]; e++) s += val[e]*y[idx[e]]; out[c]=s; } return out; };
+  // 2. minimi quadrati con vincolo 0 ≤ x ≤ 1 (gradiente proiettato accelerato, FISTA)
+  const P1 = new Float32Array(N*N), g = new Float32Array(m);
+  let v = new Float32Array(m).fill(1), L = 1;
+  for(let it=0; it<8; it++){ Ax(v, P1); ATy(P1, g); let nrm=0; for(let c=0;c<m;c++) nrm += g[c]*g[c]; nrm = Math.sqrt(nrm); L = nrm; for(let c=0;c<m;c++) v[c] = g[c]/nrm; }
+  let x = new Float32Array(m), y = new Float32Array(m), tk = 1;
+  const ITER = 120;
+  for(let it=0; it<ITER; it++){
+    Ax(y, P1); for(let i=0;i<N*N;i++) P1[i] -= b[i]; ATy(P1, g);
+    const xn = new Float32Array(m);
+    for(let c=0;c<m;c++){ const z = y[c] - g[c]/L; xn[c] = z<0?0:z>1?1:z; }
+    const tn = (1+Math.sqrt(1+4*tk*tk))/2, mom = (tk-1)/tn;
+    for(let c=0;c<m;c++) y[c] = xn[c] + mom*(xn[c]-x[c]);
+    x = xn; tk = tn;
+    if(it % 4 === 0){ status(`Risolvo il sistema di minimi quadrati… ${Math.round(100*it/ITER)}%`, 0.1 + 0.5*it/ITER); await tick(); if(!alive()) return; }
+  }
+  // 3. arrotondamento a fili interi + rifinitura (aggiungi / togli finché l'errore scende)
+  const r = Float32Array.from(b);               // residuo = foto − fili scelti
+  const on = new Uint8Array(m), order = Array.from({length:m}, (_,c)=>c).sort((a,c)=>x[c]-x[a]);
+  const delta = (c, sign) => { let d = 0; for(let e=colStart[c]; e<colStart[c+1]; e++){ const a = val[e], ri = r[idx[e]]; d += a*a - sign*2*a*ri; } return d; };
+  const apply = (c, sign) => { for(let e=colStart[c]; e<colStart[c+1]; e++) r[idx[e]] -= sign*val[e]; on[c] = sign>0 ? 1 : 0; };
+  let count = 0;
+  for(const c of order){ if(x[c] < 0.02 || count >= p.lines) break; if(delta(c, 1) < 0){ apply(c, 1); count++; } }
+  for(let pass=0; pass<4; pass++){
+    let changes = 0;
+    for(let c=0;c<m;c++){
+      if(on[c]){ if(delta(c,-1) < 0){ apply(c,-1); count--; changes++; } }
+      else if(count < p.lines && delta(c, 1) < 0){ apply(c, 1); count++; changes++; }
+    }
+    status(`Rifinisco: passata ${pass+1} di 4, ${count} fili scelti…`, 0.6 + 0.1*(pass+1)); await tick(); if(!alive()) return;
+    if(changes < Math.max(5, count*0.002)) break;
+  }
+  // 4. percorso continuo: grafo dei fili scelti, nodi dispari collegati lungo il bordo esterno, circuito di Eulero
+  status('Ordino i fili in un unico percorso…', 0.95); await tick(); if(!alive()) return;
+  const adj = Array.from({length:n}, () => []), edges = [];
+  const addEdge = (u, q, rim) => { const id = edges.length; edges.push({u, v:q, rim, used:false}); adj[u].push(id); adj[q].push(id); };
+  for(let c=0;c<m;c++) if(on[c]) addEdge(pairs[2*c], pairs[2*c+1], false);
+  const odd = []; for(let i=0;i<n;i++) if(adj[i].length % 2) odd.push(i);
+  // abbina i nodi dispari vicini lungo il bordo, scegliendo l'abbinamento con meno giro esterno
+  let bestShift = 0, bestLen = Infinity;
+  for(const sh of [0,1]){ let len = 0; for(let k=sh; k<odd.length+sh; k+=2){ const a = odd[k%odd.length], q = odd[(k+1)%odd.length]; let d = Math.abs(q-a); len += Math.min(d, n-d); } if(len < bestLen){ bestLen = len; bestShift = sh; } }
+  for(let k=bestShift; k<odd.length+bestShift; k+=2) addEdge(odd[k%odd.length], odd[(k+1)%odd.length], true);
+  const ptr = new Int32Array(n), circuits = [];
+  for(let s0=0; s0<n; s0++){
+    if(!adj[s0].some(id => !edges[id].used)) continue;
+    const stack = [[s0, -1]], circ = [];        // Hierholzer iterativo
+    while(stack.length){
+      const [u] = stack[stack.length-1];
+      while(ptr[u] < adj[u].length && edges[adj[u][ptr[u]]].used) ptr[u]++;
+      if(ptr[u] === adj[u].length){ circ.push(stack.pop()); }
+      else { const id = adj[u][ptr[u]]; edges[id].used = true; const e = edges[id]; stack.push([e.u===u ? e.v : e.u, id]); }
+    }
+    circuits.push(circ.reverse());
+  }
+  // unisce i circuiti con passaggi esterni; ogni circuito parte dal chiodo più vicino al punto in cui eravamo
+  const steps = [], rim = [];
+  let curNail = p.start-1;
+  const remaining = circuits.slice();
+  while(remaining.length){
+    let bi = 0, bk = 0, bd = Infinity;
+    remaining.forEach((cc, ci) => cc.forEach(([nd], k) => { if(k === cc.length-1) return; let d = Math.abs(nd-curNail); d = Math.min(d, n-d); if(d < bd){ bd = d; bi = ci; bk = k; } }));
+    const cc = remaining.splice(bi, 1)[0];
+    const Lc = cc.length;                          // circuito chiuso: cc[0].nodo == cc[Lc-1].nodo
+    if(steps.length === 0){ steps.push(cc[bk][0]); rim.push(0); }
+    else if(cc[bk][0] !== steps[steps.length-1]){ steps.push(cc[bk][0]); rim.push(1); }
+    for(let t=1; t<Lc; t++){
+      const k = ((bk + t - 1) % (Lc - 1)) + 1;      // l'arco cc[k][1] collega il nodo precedente a cc[k][0]
+      steps.push(cc[k][0]); rim.push(edges[cc[k][1]].rim ? 1 : 0);
+    }
+    curNail = steps[steps.length-1];
+  }
+  if(!alive()) return;
+  S.steps = steps.length ? steps : [p.start-1]; S.rim = Uint8Array.from(rim);
+  S.lenMM = 0;
+  for(let i=1;i<S.steps.length;i++){
+    const a = nails[S.steps[i-1]], q = nails[S.steps[i]];
+    if(S.rim[i]){ let d = Math.abs(S.steps[i]-S.steps[i-1]); d = Math.min(d, n-d); S.lenMM += d * ((S.shape==='circle'?Math.PI:4)*p.diam*10/n); }
+    else S.lenMM += Math.hypot(q.x-a.x, q.y-a.y)*scale;
+  }
+  const rimCount = S.rim.reduce((a,c)=>a+c, 0);
+  drawBase(p); drawLines(p, 0);
+  $('sSteps').textContent = S.steps.length-1;
+  $('sLen').textContent = Math.round(S.lenMM/1000) + ' m';
+  $('bar').style.width = '100%';
+  status(`Metodo globale: ${count} fili scelti tra ${m} possibili, più ${rimCount} passaggi esterni lungo il bordo per collegarli in un unico filo.`);
+  $('sTime').textContent = ((performance.now()-t0)/1000).toFixed(1)+' s';
+  const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10;
+  $('sNails').textContent = (per/n).toFixed(1)+' mm';
+  S.running = false; finishList();
+}
+
+/* ---------- ottimizzazione automatica delle impostazioni ---------- */
+function greedyRun(resid, nails, skip, wEff, maxLines){
+  const n = nails.length, used = new Uint8Array(n*n);
+  let cur = 0, count = 0;
+  while(count < maxLines){
+    let best = -1, bestS = -Infinity; const a = nails[cur];
+    for(let j=0;j<n;j++){
+      let dist = Math.abs(j-cur); dist = Math.min(dist, n-dist);
+      if(dist < skip || used[cur*n+j] || (a.side & nails[j].side)) continue;
+      const sc = lineScore(resid, a, nails[j]);
+      if(sc > bestS){ bestS = sc; best = j; }
+    }
+    if(best < 0 || bestS <= wEff*0.15) break;
+    lineSubtract(resid, a, nails[best], wEff);
+    used[cur*n+best] = used[best*n+cur] = 1; cur = best; count++;
+  }
+  return count;
+}
+// somiglianza: confronta foto elaborata e risultato simulato, sfocati come li vede l'occhio a distanza
+function similarityError(resid0, residF, scale){
+  const T = new Float32Array(N*N), R = new Float32Array(N*N), r2 = (N/2-1)*(N/2-1);
+  for(let i=0;i<N*N;i++){ T[i] = Math.exp(-resid0[i]/100); R[i] = Math.exp(-(resid0[i]-residF[i])/100); }
+  const r1 = Math.max(1, Math.round(1.5/scale)), out = [];
+  for(const rad of [r1, r1*3]){
+    const bt = blur(T, rad), br = blur(R, rad); let se = 0, c = 0;
+    for(let i=0;i<N*N;i++){
+      if(S.shape==='circle'){ const x=i%N-N/2+.5, y=(i/N|0)-N/2+.5; if(x*x+y*y>r2) continue; }
+      const d = bt[i]-br[i]; se += d*d; c++;
+    }
+    out.push(Math.sqrt(se/c));
+  }
+  return (out[0]+out[1])/2;
+}
+const simPct = e => Math.max(0, Math.min(100, Math.round(100*(1 - e*2.2))));
+let optCancel = false;
+async function optimizeAll(){
+  optCancel = false; S.job++;                             // ferma un calcolo in corso
+  $('optAll').disabled = $('autoOpt').disabled = true; $('optStop').hidden = false; $('optBarBox').hidden = false;
+  try{
+    optimizePhoto(false);
+    const p = P(); N = 400;
+    const resid0 = prepare(p), scale = p.diam*10/(N-2);
+    const per = (S.shape==='circle' ? Math.PI : 4) * p.diam*10;
+    const even = v => Math.max(60, Math.min(400, 2*Math.round(v/2)));
+    const nMax = even(Math.min(400, per/4.5));            // chiodi non più vicini di 4,5 mm
+    const cfg = {nails: even(Math.min(nMax, Math.max(160, per/6))), weight:1, pen:0.35, skipF:0.08};
+    const cache = new Map();
+    const evalCfg = c => {
+      const key = JSON.stringify(c); if(cache.has(key)) return cache.get(key);
+      const nails = makeNails(c.nails), skip = Math.max(1, Math.round(c.nails*c.skipF));
+      const cov = Math.min(0.95, p.thread/scale*c.weight), wEff = -100*Math.log(1-cov);
+      const r = Float32Array.from(resid0); PEN = c.pen;
+      const lines = greedyRun(r, nails, skip, wEff, 15000);
+      const res = {err: similarityError(resid0, r, scale), lines};
+      cache.set(key, res); return res;
+    };
+    const stages = [
+      ['pen',    [0.1, 0.2, 0.35, 0.5, 0.7]],
+      ['weight', [0.6, 0.8, 1, 1.25, 1.6]],
+      ['nails',  [...new Set([0.7, 0.85, 1, 1.2].map(f => even(Math.min(nMax, cfg.nails*f))))]],
+      ['skipF',  [0.03, 0.06, 0.1, 0.15]],
+      ['pen',    null], ['weight', null]                     // rifinitura attorno al migliore
+    ];
+    const total = stages.reduce((a,[,v]) => a + (v ? v.length : 3), 0); let done = 0;
+    const startErr = evalCfg({...cfg}).err; let bestErr = startErr;
+    for(const [key, vals] of stages){
+      const cand = vals || (key==='pen' ? [cfg.pen-0.07, cfg.pen, cfg.pen+0.07].map(v=>Math.max(0,Math.min(1,+v.toFixed(2))))
+                                         : [cfg.weight*0.9, cfg.weight, cfg.weight*1.1].map(v=>+v.toFixed(2)));
+      for(const v of cand){
+        if(optCancel) throw new Error('stop');
+        $('optInfo').textContent = `Provo le combinazioni… ${done+1} di ${total} (somiglianza migliore finora ${simPct(bestErr)}%)`;
+        $('optBar').style.width = (100*done/total).toFixed(0)+'%';
+        await new Promise(r => setTimeout(r, 0));
+        const res = evalCfg({...cfg, [key]: v}); done++;
+        if(res.err < bestErr - 1e-5){ bestErr = res.err; cfg[key] = v; }
+      }
+    }
+    const best = evalCfg({...cfg});
+    $('nails').value = cfg.nails; $('weight').value = Math.max(0.3, Math.min(3, cfg.weight)); $('pen').value = cfg.pen;
+    $('skip').value = Math.max(1, Math.min(60, Math.round(cfg.nails*cfg.skipF)));
+    $('lines').value = Math.min(15000, Math.max(300, Math.ceil(best.lines*1.02/100)*100));
+    $('optBar').style.width = '100%';
+    $('optInfo').textContent = `Impostazioni ottimizzate: ${cfg.nails} chiodi, intensità ${(+$('weight').value).toFixed(2)}×, protezione zone chiare ${cfg.pen.toFixed(2)}, salto ${$('skip').value}, circa ${best.lines} passaggi. Somiglianza ${simPct(best.err)}% (con le impostazioni di partenza ${simPct(startErr)}%).`;
+    toast('Ottimizzazione completata');
+  }catch(e){
+    if(e.message === 'stop') $('optInfo').textContent = 'Ottimizzazione interrotta: restano le impostazioni precedenti.';
+    else { $('optInfo').textContent = 'Ottimizzazione non riuscita.'; console.error(e); }
+  }finally{
+    $('optAll').disabled = $('autoOpt').disabled = false; $('optStop').hidden = true; $('optBarBox').hidden = true;
+    syncOutputs(); generate();
+  }
+}
+
+/* ---------- disegno ---------- */
+const toC = v => (v + 0.5) * W / N;
+function drawBase(p){
+  actx.fillStyle = p.bgCol; actx.fillRect(0,0,W,W);
+  if(S.shape==='circle'){
+    actx.save(); actx.globalCompositeOperation='destination-in';
+    actx.beginPath(); actx.arc(W/2,W/2,W/2,0,Math.PI*2); actx.fill(); actx.restore();
+  }
+}
+function drawLines(p, from){
+  const st = S.steps, nails = S.nails;
+  if(st.length < 2) return from;
+  actx.strokeStyle = p.threadCol; actx.globalAlpha = p.alpha; actx.lineWidth = p.thread * W / (p.diam*10);
+  actx.beginPath();
+  const s0 = Math.max(from,0);
+  actx.moveTo(toC(nails[st[s0]].x), toC(nails[st[s0]].y));
+  for(let i=s0+1;i<st.length;i++){ const q = nails[st[i]]; if(S.rim && S.rim[i]) actx.moveTo(toC(q.x), toC(q.y)); else actx.lineTo(toC(q.x), toC(q.y)); }
+  actx.stroke(); actx.globalAlpha = 1;
+  return st.length-1;
+}
+function redrawAll(){ const p=P(); drawBase(p); drawLines(p,0); drawOverlay(); }
+function drawOverlay(){
+  const p = P(), nails = S.nails, n = nails.length;
+  octx.clearRect(0,0,W,W);
+  const dark = luminance(p.bgCol) < 0.5;
+  octx.fillStyle = dark ? '#d6a24a' : '#8a5f12';
+  const r = n > 300 ? 1.6 : 2.2;
+  for(const q of nails){ octx.beginPath(); octx.arc(toC(q.x),toC(q.y),r,0,Math.PI*2); octx.fill(); }
+  if(p.showNums){
+    const every = n<=120?5:10;
+    octx.font = '500 22px "IBM Plex Mono", monospace';
+    octx.fillStyle = dark ? '#eee' : '#444';
+    octx.textAlign='center'; octx.textBaseline='middle';
+    for(let k=0;k<n;k+=every){
+      const q = nails[k], cx=W/2, cy=W/2, x=toC(q.x), y=toC(q.y);
+      const dx=x-cx, dy=y-cy, l=Math.hypot(dx,dy)||1;
+      octx.fillText(String(k+1), x - dx/l*26, y - dy/l*26);
+    }
+  }
+  // passo corrente
+  const st = S.steps;
+  if(st.length > 1 && S.cur > 0 && S.cur < st.length){
+    const a = nails[st[S.cur-1]], b = nails[st[S.cur]];
+    octx.strokeStyle = '#e0a020'; octx.lineWidth = 4; octx.globalAlpha = .95;
+    if(S.rim && S.rim[S.cur]) octx.setLineDash([8,8]);
+    octx.beginPath(); octx.moveTo(toC(a.x),toC(a.y)); octx.lineTo(toC(b.x),toC(b.y)); octx.stroke(); octx.setLineDash([]);
+    octx.globalAlpha = 1;
+    octx.fillStyle = '#e0a020';
+    octx.beginPath(); octx.arc(toC(b.x),toC(b.y),9,0,Math.PI*2); octx.fill();
+    octx.strokeStyle = '#222'; octx.lineWidth=2;
+    octx.beginPath(); octx.arc(toC(a.x),toC(a.y),8,0,Math.PI*2); octx.stroke();
+  }
+}
+function luminance(hex){ const v=parseInt(hex.slice(1),16); return (0.299*(v>>16)+0.587*((v>>8)&255)+0.114*(v&255))/255; }
+
+/* ---------- lista di lavoro e lettore ---------- */
+const LS_KEY = 'stringart-step';
+function finishList(){
+  const st = S.steps, list = $('list');
+  const frag = document.createDocumentFragment();
+  for(let i=1;i<st.length;i++){
+    const d = document.createElement('div'); d.setAttribute('role','listitem'); d.dataset.i = i;
+    const ext = S.rim && S.rim[i];
+    d.innerHTML = `<span>${i}</span><b style="font-weight:400">${st[i-1]+1} → ${st[i]+1}${ext ? ' <i>esterno</i>' : ''}</b>`;
+    frag.appendChild(d);
+  }
+  list.replaceChildren(frag);
+  let saved = 1;
+  if(S.pendingStep){ saved = S.pendingStep; S.pendingStep = 0; } else
+  try{ const o = JSON.parse(localStorage.getItem(LS_KEY)||'null'); if(o && o.sig===signature()) saved = o.i; }catch(e){}
+  setCur(Math.min(saved, st.length-1), false);
+}
+function signature(){ const st=S.steps; return st.length+':'+st.slice(0,40).join(','); }
+function setCur(i, scroll=true){
+  const st = S.steps, total = st.length-1;
+  if(total < 1){ S.cur=0; $('pFrom').textContent='–'; $('pTo').textContent='–'; $('pStep').textContent='nessun passo'; drawOverlay(); return; }
+  i = Math.max(1, Math.min(i, total)); S.cur = i;
+  $('pFrom').textContent = st[i-1]+1; $('pTo').textContent = st[i]+1;
+  $('pStep').textContent = `passo ${i} di ${total}` + (S.rim && S.rim[i] ? ' · all\'esterno, lungo il bordo' : '');
+  $('pJump').value = i; $('pJump').max = total;
+  const list = $('list'); list.querySelector('.cur')?.classList.remove('cur');
+  const el = list.children[i-1]; if(el){ el.classList.add('cur'); if(scroll){ el.scrollIntoView({block:'nearest'}); } }
+  try{ localStorage.setItem(LS_KEY, JSON.stringify({sig:signature(), i})); }catch(e){}
+  drawOverlay();
+}
+$('pPrev').onclick = () => setCur(S.cur-1);
+$('pNext').onclick = () => setCur(S.cur+1);
+$('pJump').onchange = () => setCur(+$('pJump').value||1);
+$('list').onclick = e => { const d = e.target.closest('[data-i]'); if(d) setCur(+d.dataset.i, false); };
+document.addEventListener('keydown', e => {
+  if(e.target.matches('input,textarea')) return;
+  if(e.key==='ArrowRight' || e.key===' '){ e.preventDefault(); setCur(S.cur+1); }
+  else if(e.key==='ArrowLeft'){ e.preventDefault(); setCur(S.cur-1); }
+});
+
+/* ---------- esportazione ---------- */
+function header(){ const p=P(); return `String art · ${S.shape==='circle'?'cerchio Ø':'quadrato lato '}${p.diam} cm · filo ${p.thread} mm · ${p.nails} chiodi (n.1 in alto, senso orario) · ${S.steps.length-1} passaggi · filo ~${Math.round(S.lenMM/1000)} m`; }
+function txt(){ const st=S.steps; let s = header()+'\n'; if(S.rim) s += '"esterno" = porta il filo all\'esterno dei chiodi, lungo il bordo, fino al chiodo indicato\n'; s += '\n'; for(let i=1;i<st.length;i++) s += `${i}. ${st[i-1]+1} -> ${st[i]+1}${S.rim && S.rim[i] ? ' (esterno)' : ''}\n`; return s; }
+function csv(){ const st=S.steps; let s = 'passo,da,a,tipo\n'; for(let i=1;i<st.length;i++) s += `${i},${st[i-1]+1},${st[i]+1},${S.rim && S.rim[i] ? 'esterno' : 'filo'}\n`; return s; }
+function toast(m){ $('toast').textContent = m; clearTimeout(toast.t); toast.t = setTimeout(()=>$('toast').textContent='', 3500); }
+const dlCap = window.claude?.use ? window.claude.use('downloads').catch(()=>null) : Promise.resolve(null);
+async function download(name, data, type){
+  const blob = data instanceof Blob ? data : new Blob([data], {type});
+  if(window.claude?.use){
+    const dl = await dlCap;
+    if(dl){
+      try{ await dl.save({filename:name, data:blob}); toast('File salvato: '+name); }
+      catch(e){ toast(e && e.code==='declined' ? 'Download annullato' : 'Download non disponibile qui, usa Copia lista'); }
+      return;
+    }
+  }
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href), 2000);
+  toast('Download avviato: '+name);
+}
+$('copyList').onclick = () => {
+  const t = txt();
+  navigator.clipboard.writeText(t).then(()=>toast('Lista copiata negli appunti'), ()=>{
+    const f=$('fallback'); f.hidden=false; f.value=t; f.focus(); f.select(); toast('Seleziona il testo qui sotto e copialo');
+  });
+};
+$('dlTxt').onclick = () => download('stringart-lista.txt', txt(), 'text/plain');
+$('dlCsv').onclick = () => download('stringart-lista.csv', csv(), 'text/csv');
+$('dlPng').onclick = () => {
+  const c = document.createElement('canvas'); c.width=c.height=W; const g=c.getContext('2d');
+  g.drawImage(art,0,0); c.toBlob(b=>download('stringart-anteprima.png', b));
+};
+$('dlSvg').onclick = () => {
+  const p = P(), mm = p.diam*10, pad = 25, sz = mm + pad*2, nails = S.nails, n = nails.length;
+  const k = mm/(N-2), off = pad - 1*k;
+  let s = `<svg xmlns="http://www.w3.org/2000/svg" width="${sz}mm" height="${sz}mm" viewBox="0 0 ${sz} ${sz}">`;
+  s += `<rect width="${sz}" height="${sz}" fill="#fff"/>`;
+  s += S.shape==='circle' ? `<circle cx="${sz/2}" cy="${sz/2}" r="${mm/2}" fill="none" stroke="#bbb" stroke-width="0.3"/>` : `<rect x="${pad}" y="${pad}" width="${mm}" height="${mm}" fill="none" stroke="#bbb" stroke-width="0.3"/>`;
+  s += `<line x1="${sz/2-5}" y1="${sz/2}" x2="${sz/2+5}" y2="${sz/2}" stroke="#bbb" stroke-width="0.3"/><line x1="${sz/2}" y1="${sz/2-5}" x2="${sz/2}" y2="${sz/2+5}" stroke="#bbb" stroke-width="0.3"/>`;
+  const fs = Math.max(1.6, Math.min(3.2, (Math.PI*mm/n)*0.55));
+  for(let i=0;i<n;i++){
+    const x = nails[i].x*k + off, y = nails[i].y*k + off;
+    s += `<circle cx="${x.toFixed(2)}" cy="${y.toFixed(2)}" r="0.7" fill="#000"/>`;
+    const dx = x - sz/2, dy = y - sz/2, l = Math.hypot(dx,dy)||1;
+    const tx = x + dx/l*5, ty = y + dy/l*5;
+    const ang = Math.atan2(dy,dx)*180/Math.PI;
+    s += `<text x="${tx.toFixed(2)}" y="${ty.toFixed(2)}" font-family="monospace" font-size="${fs.toFixed(2)}" text-anchor="start" dominant-baseline="middle" transform="rotate(${ang.toFixed(1)} ${tx.toFixed(2)} ${ty.toFixed(2)})">${i+1}</text>`;
+  }
+  s += `<text x="${pad}" y="${sz-8}" font-family="sans-serif" font-size="4" fill="#666">${header().replace(/&/g,'&amp;').replace(/</g,'&lt;')} · stampa al 100%</text></svg>`;
+  download('stringart-dima.svg', s, 'image/svg+xml');
+};
+
+/* ---------- eventi ---------- */
+let deb;
+function schedule(){ syncOutputs(); clearTimeout(deb); deb = setTimeout(generate, 350); }
+['zoom','offX','offY','contrast','bright','gamma','clahe','sharp','fade','nails','lines','weight','skip','pen'].forEach(id => $(id).addEventListener('input', schedule));
+['invert','autoLevels','start','diam','thread','res','method'].forEach(id => $(id).addEventListener('change', schedule));
+['alpha','threadCol','bgCol'].forEach(id => $(id).addEventListener('input', ()=>{ syncOutputs(); redrawAll(); }));
+$('showNums').addEventListener('change', drawOverlay);
+$('invert').addEventListener('change', () => {
+  const inv = $('invert').checked;
+  $('threadCol').value = inv ? '#f2f2f2' : '#141414'; $('bgCol').value = inv ? '#141414' : '#ffffff';
+});
+function setShape(s){
+  S.shape = s;
+  $('shapeCircle').setAttribute('aria-pressed', s==='circle'); $('shapeSquare').setAttribute('aria-pressed', s==='square');
+  $('diamLabel').textContent = s==='circle' ? 'Diametro (cm)' : 'Lato (cm)';
+  schedule();
+}
+$('shapeCircle').onclick = () => setShape('circle');
+$('shapeSquare').onclick = () => setShape('square');
+$('regen').onclick = generate;
+function optimizePhoto(regen = true){
+  // misura la luminosità media dopo livelli e contrasto locale, poi sceglie i toni medi
+  $('autoLevels').checked = true; $('clahe').value = 0.6; $('sharp').value = 0.8; $('fade').value = 0.35;
+  $('contrast').value = 0; $('bright').value = 0; $('gamma').value = 1;
+  const p = P(); p.gamma = 1; p.fade = 0; p.sharp = 0;
+  prepare(p);
+  const m = Math.min(0.95, Math.max(0.05, 1 - S.meanDark));        // luminosità media 0..1
+  const target = p.invert ? 0.45 : 0.5;                              // la string art rende meglio su immagini chiare
+  const gm = Math.min(2.5, Math.max(0.6, Math.log(m)/Math.log(target)));
+  $('gamma').value = gm.toFixed(2);
+  syncOutputs();
+  if(regen){ toast('Foto ottimizzata: puoi ritoccare i cursori a mano'); schedule(); }
+}
+$('autoOpt').onclick = () => optimizePhoto();
+$('optAll').onclick = () => optimizeAll();
+$('optStop').onclick = () => { optCancel = true; };
+$('stop').onclick = () => { if(S.running){ S.job++; S.running=false; finishList(); toast('Calcolo fermato'); } };
+
+function loadFile(f){
+  if(!f || !f.type.startsWith('image/')) { toast('Il file scelto non è un\'immagine'); return; }
+  const url = URL.createObjectURL(f), im = new Image();
+  im.onload = () => { S.img = im; $('srcName').textContent = f.name || 'Immagine incollata'; generate(); };
+  im.onerror = () => toast('Impossibile leggere questa immagine, prova un JPG o PNG');
+  im.src = url;
+}
+$('file').addEventListener('change', e => loadFile(e.target.files[0]));
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => { e.preventDefault(); loadFile(e.dataTransfer.files[0]); });
+document.addEventListener('paste', e => { const it=[...e.clipboardData.items].find(i=>i.type.startsWith('image/')); if(it) loadFile(it.getAsFile()); });
+
+/* ---------- progetto (foto + parametri + passo raggiunto) ---------- */
+const PARAM_IDS = [...document.querySelectorAll('aside input, aside select')].map(e=>e.id).filter(id=>id && id!=='file');
+function imageDataURL(){
+  const im = S.img, w = im.naturalWidth||im.width, h = im.naturalHeight||im.height;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(im,0,0);
+  return c.toDataURL('image/png');
+}
+$('saveProj').onclick = () => {
+  const params = {};
+  for(const id of PARAM_IDS){ const e = $(id); params[id] = e.type==='checkbox' ? e.checked : e.value; }
+  const proj = {app:'telaio-stringart', version:1, shape:S.shape, params, step:S.cur, imageName:$('srcName').textContent, image:imageDataURL()};
+  const name = (($('srcName').textContent||'progetto').replace(/\.[a-z0-9]+$/i,'').replace(/[^\w\- ]+/g,'').trim().slice(0,40) || 'progetto');
+  download(`stringart-${name}.json`, JSON.stringify(proj), 'application/json');
+};
+$('openProj').addEventListener('change', e => {
+  const f = e.target.files[0]; if(!f) return;
+  f.text().then(t => {
+    const proj = JSON.parse(t);
+    if(proj.app !== 'telaio-stringart') throw new Error('formato');
+    for(const [id,v] of Object.entries(proj.params||{})){ const el = $(id); if(!el) continue; if(el.type==='checkbox') el.checked = v; else el.value = v; }
+    S.shape = proj.shape==='square' ? 'square' : 'circle';
+    $('shapeCircle').setAttribute('aria-pressed', S.shape==='circle'); $('shapeSquare').setAttribute('aria-pressed', S.shape==='square');
+    $('diamLabel').textContent = S.shape==='circle' ? 'Diametro (cm)' : 'Lato (cm)';
+    const im = new Image();
+    im.onload = () => { S.img = im; $('srcName').textContent = proj.imageName || f.name; S.pendingStep = proj.step||1; syncOutputs(); generate(); toast('Progetto aperto: ripreso dal passo '+(proj.step||1)); };
+    im.src = proj.image;
+  }).catch(() => toast('Questo file non è un progetto del Telaio String Art'));
+  e.target.value = '';
+});
+
+{ const mv = document.querySelector('meta[name="telaio-version"]'); if(mv) $('appVersion').textContent = 'Versione ' + mv.content + '.'; }
+S.img = sampleImage();
+syncOutputs();
+generate();
+})();
+</script>
