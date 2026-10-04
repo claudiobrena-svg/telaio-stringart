@@ -1,7 +1,7 @@
 <!doctype html><html lang="it"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>:root{color-scheme:light}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style>
 </head><body>
 <title>Telaio String Art</title>
-<meta name="telaio-version" content="1.4.1">
+<meta name="telaio-version" content="1.4.2">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Instrument+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
 <style>
@@ -50,8 +50,8 @@ input[type=number]{font:inherit;font-family:var(--f-mono);width:90px;padding:5px
 select{font:inherit;padding:5px 8px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--fg)}
 input[type=color]{width:38px;height:30px;border:1px solid var(--line);border-radius:6px;padding:2px;background:var(--panel)}
 .check{display:flex;gap:8px;align-items:center}
-.src{display:grid;grid-template-columns:110px 1fr;gap:12px;align-items:center}
-.src canvas{width:110px;height:110px;border-radius:6px;border:1px solid var(--line);background:#fff}
+.src{display:grid;grid-template-columns:140px 1fr;gap:12px;align-items:center}
+.src canvas{width:140px;height:140px;cursor:grab;touch-action:none;border-radius:6px;border:1px solid var(--line);background:#fff}
 .src p{margin:0;color:var(--muted);font-size:12.5px}
 .stage{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:18px;align-items:start}
 @media (max-width:1150px){.stage{grid-template-columns:minmax(0,1fr)}}
@@ -95,15 +95,15 @@ textarea{width:100%;height:90px;font-family:var(--f-mono);font-size:12px;border:
       <div class="group">
         <h2>Immagine</h2>
         <div class="src">
-          <canvas id="srcPrev" width="220" height="220" aria-label="Immagine elaborata"></canvas>
+          <canvas id="srcPrev" width="220" height="220" aria-label="Immagine elaborata: trascinala per spostare l'inquadratura, usa la rotellina per lo zoom" title="Trascina per spostare, rotellina per lo zoom"></canvas>
           <div class="row" style="flex-direction:column;align-items:flex-start;gap:6px">
             <label class="filebtn">Scegli immagine…<input type="file" id="file" accept="image/*"></label>
-            <p id="srcName">Esempio incluso: ritratto stilizzato. Puoi anche trascinare o incollare un'immagine.</p>
+            <p id="srcName">Esempio incluso: ritratto stilizzato. Puoi anche trascinare o incollare un'immagine. Per inquadrare, trascina la miniatura e usa la rotellina.</p>
           </div>
         </div>
         <div class="ctl"><label for="zoom">Zoom</label><output id="zoomO"></output><input type="range" id="zoom" min="1" max="3" step="0.05" value="1"></div>
-        <div class="ctl"><label for="offX">Sposta orizzontale</label><output id="offXO"></output><input type="range" id="offX" min="-1" max="1" step="0.02" value="0"></div>
-        <div class="ctl"><label for="offY">Sposta verticale</label><output id="offYO"></output><input type="range" id="offY" min="-1" max="1" step="0.02" value="0"></div>
+        <div class="ctl"><label for="offX">Inquadratura orizzontale</label><output id="offXO"></output><input type="range" id="offX" min="-1" max="1" step="0.02" value="0"><small>← verso sinistra · verso destra →</small></div>
+        <div class="ctl"><label for="offY">Inquadratura verticale</label><output id="offYO"></output><input type="range" id="offY" min="-1" max="1" step="0.02" value="0"><small>← verso l'alto · verso il basso →</small></div>
         <div class="ctl"><label for="contrast">Contrasto</label><output id="contrastO"></output><input type="range" id="contrast" min="-50" max="100" step="1" value="0"></div>
         <div class="ctl"><label for="bright">Luminosità</label><output id="brightO"></output><input type="range" id="bright" min="-80" max="80" step="1" value="0"></div>
         <div class="ctl"><label for="gamma">Toni medi</label><output id="gammaO"></output><input type="range" id="gamma" min="0.4" max="2.5" step="0.05" value="1"><small>Sopra 1 schiarisce le ombre e fa emergere i dettagli nelle zone scure.</small></div>
@@ -859,6 +859,22 @@ function schedule(){ syncOutputs(); clearTimeout(deb); deb = setTimeout(generate
 ['invert','autoLevels','start','diam','thread','res','method'].forEach(id => $(id).addEventListener('change', schedule));
 ['alpha','threadCol','bgCol'].forEach(id => $(id).addEventListener('input', ()=>{ syncOutputs(); redrawAll(); }));
 $('showNums').addEventListener('change', drawOverlay);
+// inquadratura con il mouse sulla miniatura: trascina per spostare la foto, rotellina per lo zoom
+{
+  const sp = $('srcPrev'); let drag = null;
+  const clamp = v => Math.max(-1, Math.min(1, v));
+  sp.addEventListener('pointerdown', e => { drag = {x:e.clientX, y:e.clientY, ox:+$('offX').value, oy:+$('offY').value}; sp.setPointerCapture(e.pointerId); sp.style.cursor = 'grabbing'; });
+  sp.addEventListener('pointermove', e => {
+    if(!drag) return;
+    const k = 2.2 / sp.clientWidth / Math.max(0.35, +$('zoom').value - 0.6);
+    $('offX').value = clamp(drag.ox - (e.clientX-drag.x)*k).toFixed(2);
+    $('offY').value = clamp(drag.oy - (e.clientY-drag.y)*k).toFixed(2);
+    syncOutputs(); prepare(P());
+  });
+  const end = () => { if(drag){ drag = null; sp.style.cursor = ''; schedule(); } };
+  sp.addEventListener('pointerup', end); sp.addEventListener('pointercancel', end);
+  sp.addEventListener('wheel', e => { e.preventDefault(); $('zoom').value = Math.max(1, Math.min(3, +$('zoom').value - Math.sign(e.deltaY)*0.05)).toFixed(2); syncOutputs(); prepare(P()); schedule(); }, {passive:false});
+}
 $('farView').addEventListener('change', () => { art.style.filter = $('farView').checked ? 'blur(0.9px)' : ''; });
 $('invert').addEventListener('change', () => {
   const inv = $('invert').checked;
